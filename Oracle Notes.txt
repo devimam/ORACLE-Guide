@@ -1,0 +1,413 @@
+Client Side - SQL*Plus
+-----------------------
+Commands:
+    >> sqlplus /nolog
+    >> sqlplus / [AS SYSDBA]
+    >> sqlplus username@connect-identifier [as SYSDBA]
+    >> sqlplus username/password@connect-identifier [as SYSDBA]
+
+    >> EXIT or, QUIT
+
+    >> CONNECT username@connect-identifier [AS SYSDBA]
+    >> CONNECT username/password@connect-identifier [AS SYSDBA]
+
+    >> DISCONNECT
+
+    >> STARTUP NOMOUNT
+    >> STARTUP MOUNT [dbname]
+    >> STARTUP OPEN [READ ONLY | READ WRITE] [dbname]
+    >> STARTUP PFILE=filename
+
+    >> SHUTDOWN [ABORT | IMMEDIATE | NORMAL | TRANSACTIONAL]
+
+    >> /
+    >> @ filename ... ...
+
+    >> SPOOL filename ... ...
+
+Link: https://docs.oracle.com/en/database/oracle/oracle-database/21/sqlqr/SQL-Plus-Commands.html#GUID-8D2B460E-AF21-4756-9703-D7442CDF33F6
+Reference: 1 sql-language-quick-reference.pdf
+
+
+Oracle Network Environment:
+---------------------------
+Client(Oracle Net) <------Oracle Net Service----->DB Server (Oracle Net includes Oracle Net Listener)
+- Single listener can service multiple DB instances and thousands of client connections.
+
+Steps:
+    1. Client issues a connect string (ex: CONNECT user/pass@connect-identifier)
+    2. Connect identifier types
+        a. Easy connect naming:
+                CONNECT user/passA@host[:port][/service_name]
+
+        b. Local Naming:
+            - Stores connect descriptors (identified by their Net Service Name) in a local configuration file named tnsnames.ora on the client.
+            - Net Service Name maps to a connect descriptor (Oracle Net Resolution)
+                CONNECT user/pass@finflowers
+            - Connect Descriptor
+                finflowers = (DESCRIPTION=
+                                (ADDRESS=(PROTOCOL=TCP)(HOST=FLOWERS-SERVER)(PORT=1521))
+                                (
+                                    CONNECT_DATA=
+                                        (
+                                            SERVICE_NAME=FINANCE.US.FLOWERS.COM
+                                        )
+                                )
+                            )
+        c. Directory Naming
+        d. External Naming
+
+    3. After Oracle Net names resolution is complete, a connection request is passed from the user or middle-tier application to the listener.
+       The listener receives a CONNECT packet and checks whether that CONNECT packet is requesting a valid Oracle Net service name.
+    4. If the CONNECT packet requests a valid service name, the listener spawns a new server process to deal with the connection.
+    5. The server process checks the user's authentication credentials, and if the credentials are valid, a user session is created.
+
+- Listener Control Utility Syntax:
+    >> lsnrctl status|start|reload|stop
+    >> lsnrctl SERVICES
+    >> lsnrctl SET CURRENT_LISTENER listener_name
+    >> lsnrctl SHOW
+
+Link: https://docs.oracle.com/en/database/oracle/oracle-database/21/netrf/listener-control-utility.html#GUID-3E108E50-0B69-4F46-82D7-48D8DBDCC30A
+Reference: 2 database-net-services-reference.pdf
+
+- Testing Oracle Net Connectivity:
+    >> tnsping host.example.com:1521/orcl
+    >> tnsping orcl
+
+
+Control File Management:
+------------------------
+- Maintains integrity of database and determines whether the database is in a valid state or not.
+- Can be modified by the Oracle Server only, no database administrator or end user can edit the control file.
+- Control files can be multiplexed (safeguard against a single point of failure) up to 8 times.
+Multiplexing Way1 - SPFILE:
+    1. ALTER SYSTEM SET
+       control_files = '$HOME/ORADATA/u01/ctrl01.ctl',
+                       '$HOME/ORADATA/u02/ctrl02.ctl'
+       SCOPE=SPFILE;
+
+    2. shutdown immediate
+    3. Copy the ctrl01.ctl file and paste to create the other control file. Rename it to 'ctrl02.ctl'
+    4. startup
+
+Multiplexing Way2 - PFILE:
+    1. shutdown immediate
+    2. Copy the ctrl01.ctl file and paste to create the other control file. Rename it to 'ctrl02.ctl'
+    3. Edit the control file names parameter of PFILE:
+        CONTROL_FILES = '$HOME/ORADATA/u01/ctrl01.ctl',
+                        '$HOME/ORADATA/u02/ctrl02.ctl'
+    4. startup
+
+Commands:
+    >> SHOW PARAMETER CONTROL_FILES
+    >> SELECT * FROM V$CONTROLFILE
+
+    >> SELECT * FROM V$CONTROLFILE_RECORD_SECTION
+    >> SELECT * FROM V$PARAMETER
+
+Dynamic Performance Views:
+    - V$DATABASE
+    - V$ARCHIVE
+    - V$ARCHIVED_LOG
+
+Tablespace and Data File Management:
+------------------------------------
+- Oracle stores data logically in tablespaces and physically in data files.
+- Tablespace: belong to only 1 database and consists of one or more data files.
+- Data files: belong to only 1 database and 1 tablespace. Schema object data repository.
+- SYSTEM tablespace:
+    - contains data dictionary, stored program units, system undo segment.
+- Non-system tablespace:
+    - controls the amount of space allocated to the user's objects
+    - eases space administration by separating undo, temporary, application data, and application index segments.
+- Data Dictionary Views:
+    - V$TABLESPACE, dba_tablespaces
+    - dba_segments, dba_extents
+    - V$UNDOSTAT,   dba_rollback_segs
+
+    - V$DATAFILE,   dba_data_files
+    - V$TEMPFILE,   dba_temp_files
+
+    - dba_free_space
+
+- Commands:
+    >> CREATE TABLESPACE tablespace_name
+       [DATAFILE filename [SIZE integer[K|M]] [REUSE] [AUTOEXTEND {OFF|ON [NEXT integer[K|M]] [MAXSIZE UNLIMITED | integer[K|M]]]
+       [MINIMUM EXTENT integer[K|M]]
+       [BLOCKSIZE integer[K]]
+       [LOGGING | NOLOGGING]
+       [DEFAULT STORAGE (INITIAL 2M NEXT 2M MAXEXTENTS 999)]
+       [ONLINE | OFFLINE]
+       [PERMANENT | TEMPORARY]
+       [EXTENT MANAGEMENT [DICTIONARY | LOCAL [AUTOALLOCATE | UNIFORM [SIZE integer[K|M]]]]]
+       [SEGMENT SPACE MANAGEMENT AUTO | ...]
+
+    >> ALTER TABLESPACE tablespace_name READ ONLY
+    >> ALTER TABLESPACE tablespace_name {ONLINE | OFFLINE}
+    >> ALTER TABLESPACE tablespace_name
+       ADD DATAFILE filepath SIZE 5M
+    >> ALTER DATABASE
+       DATAFILE filepath AUTOEXTEND ON NEXT 2M
+    >> ALTER DATABASE
+       DATAFILE filepath RESIZE 5M
+
+    >> DROP TABLESPACE tablespace_name [INCLUDING CONTENTS [AND DATAFILES]] [CASCADE CONSTRAINTS]
+
+    - Only one UNDO tablespace can be in assigned to a database at a time.
+    - More than one UNDO tablespace may exist within an intance, but only on can be active
+    >> CREATE UNDO TABLESPACE tablespace_name
+       [DATAFILE filename [SIZE integer[K|M]] [REUSE] []]
+       [EXTENT MANAGEMENT [LOCAL [AUTOALLOCATE | UNIFORM [SIZE integer[K|M]]]]]
+    >> ALTER SYSTEM SET UNDO_TABLESPACE=UNDOTBS2;
+
+    >> CREATE TEMPORARY TABLESPACE tablespace_name
+       [TEMPFILE filename [SIZE integer[K|M]] [REUSE] []]
+       [MINIMUM EXTENT integer[K|M]]
+       [LOGGING | NOLOGGING]
+       [DEFAULT storage_clause]
+       [ONLINE | OFFLINE]
+       [EXTENT MANAGEMENT [DICTIONARY | LOCAL [AUTOALLOCATE | UNIFORM [SIZE integer[K|M]]]]]
+       []
+
+    >> ALTER DATABASE
+       DEFAULT TEMPORARY TABLESPACE default_temp2
+
+
+REDO LOG Management:
+---------------------
+- V$LOG
+- V$LOGFILE
+
+- Commands:
+    >> ALTER SYSTEM SWITCH logfile;
+    >> ALTER DATABASE
+       ADD LOGFILE GROUP 3
+             (
+                '$HOME/ORADATA/u01/log3a.rdo',
+                '$HOME/ORADATA/u01/log3b.rdo'
+             )
+       SIZE 1M;
+    >> ALTER DATABASE DROP LOGFILE GROUP 3;
+    >> ALTER DATABASE CLEAR [UNARCHIVED] LOGFILE GROUP 3;
+    >> ALTER DATABASE ADD LOGFILE MEMBER
+            '$HOME/ORADATA/u04/log1c.rdo' TO GROUP 1,
+            '$HOME/ORADATA/u04/log2c.rdo' TO GROUP 2,
+            '$HOME/ORADATA/u04/log3c.rdo' TO GROUP 3;
+    >> ALTER DATABASE DROP LOGFILE MEMBER '$HOME/ORADATA/u04/log3c.rdo';
+
+
+SQL Commands:
+--------------
+>> SELECT {* | [DISTINCT] column|expression [alias], ...}
+   FROM table1
+        [NATURAL JOIN table2]
+        [JOIN table2 USING (col1, col2, ...)]
+        [JOIN table2 ON join_condition [table3 ON join_condition] ...]
+        [LEFT|RIGHT|FULL OUTER JOIN table2 ON join_condition]
+        [CROSS JOIN table2]
+
+   WHERE condition
+
+   GROUP BY group_by_expr, ...
+
+   HAVING group_fn_condition
+
+   [UNION|UNION ALL|INTERSECT|MINUS
+
+   SELECT ... ...]
+
+   [FOR UPDATE [OF table1.column] [WAIT 5]]
+
+   ORDER BY {col|col_alias|expr|numeric_postition} [ASC|DESC] [NULLS FIRST|LAST], ...
+
+   OFFSET n {ROW|TOWS}
+   FETCH {FIRST|NEXT} n [PERCENT] {ROW|ROWS} {ONLY|WITH TIES}
+
+--------------------------------------------------------------------------------------------------------
+>> INSERT INTO tablename[(col1, col2, col3, ...)]
+   VALUES (col1_val, col2_val, col3_val, ....)
+>> INSERT INTO tablename[(col1, col2, col3, ...)]
+   SELECT tbl_col1, tbl_col2, tbl_col3, ...
+   FROM tablename
+   WHERE ....
+>> INSERT ALL
+    INTO table1 VALUES(col1, col2,...)
+    INTO table2 VALUES(col1, col2,...)
+   SELECT col1, col2, col3, ...
+   FROM tablename
+   WHERE ...
+>> INSERT ALL
+    WHEN condn THEN
+        INTO table1 VALUES(col1, col2,...)
+    WHEN condn THEN
+        INTO table2 VALUES(col1, col2,...)
+    ELSE
+        INTO table2 VALUES(col1, col2,...)
+    SELECT col1, col2, col3, ...
+    FROM tablename
+    WHERE ...
+>> INSERT FIRST
+    WHEN condn THEN
+        INTO table1 VALUES(col1, col2,...)
+    WHEN condn THEN
+        INTO table2 VALUES(col1, col2,...)
+    ELSE
+        INTO table2 VALUES(col1, col2,...)
+    SELECT col1, col2, col3, ...
+    FROM tablename
+    WHERE ...
+
+>> UPDATE tablename
+   SET col1=val1, col2=val2, ...
+   WHERE condition
+
+>> DELETE [FROM] tablename
+   WHERE condition
+>> TRUNCATE TABLE tablename
+
+--------------------------------------------------------------------------------------------------------
+>> COMMIT
+>> SAVEPOINT savepoint_name
+>> ROLLBACK TO SAVEPOINT savepoint_name
+>> ROLLBACK
+
+--------------------------------------------------------------------------------------------------------
+>> CREATE TABLE tablename(
+        col1 datatype [DEFAULT def_val] [CONSTRAINT constr_name] [NOT NULL|UNIQUE|PRIMARY KEY|CHECK condn|FOREIGN KEY REFERENCES ref_table(ref_col) ON DELETE CASCADE] [NOT DEFERRABLE|DEFERRABLE INITIALLY DEFERRED|DEFERRABLE INITIALLY IMMEDIATE],
+        col2 datatype [DEFAULT def_val] [CONSTRAINT constr_name] [NOT NULL|UNIQUE|PRIMARY KEY|CHECK condn|FOREIGN KEY REFERENCES ref_table(ref_col) ON DELETE SET NULL] [NOT DEFERRABLE|DEFERRABLE INITIALLY DEFERRED|DEFERRABLE INITIALLY IMMEDIATE],
+        ...
+        [CONSTRAINT constr_name] UNIQUE (col1, ...) |PRIMARY KEY (col1, ...) |CHECK condn|FOREIGN KEY (col1, ...) REFERENCES ref_table(ref_col) ON DELETE CASCADE|SET NULL [NOT DEFERRABLE|DEFERRABLE INITIALLY DEFERRED|DEFERRABLE INITIALLY IMMEDIATE],
+        ...
+    )
+>> CREATE TABLE tablename [(col1, col2, ...)]
+   AS select * from tablename where condition ...
+>> CREATE GLOBAL TEMPORARY TABLE table_name(col datatype, col datatype)
+   ON COMMIT [DELETE ROWS | PRESERVE ROWS AS subquery]
+>> CREATE TABLE table_name (col1 datatype, col2 datatype, ...)
+   ORGANIZATION EXTERNAL
+   (
+       TYPE ORACLE_LOADER
+       DEFAULT DIRECTORY dir_name
+       ACCESS PARAMETERS
+       (
+        RECORDS DELIMITED BY NEWLINE
+        NOBADFILE
+        NOLOGFILE
+        FIELDS TERMINATED BY ','
+       )
+       LOCATION ('filename.dat')
+   )
+   PARALLEL parallel_num
+   REJECT LIMIT limit
+
+>> ALTER TABLE tablename {READ ONLY|READ WRITE}
+>> ALTER TABLE tablename
+   ADD (col1 datatype ...,
+        col2 datatype ...,
+        ...
+       )
+>> ALTER TABLE tablename
+   MODIFY ( col1 datatype ...,
+            col2 datatype ...,
+            ...
+          )
+>> ALTER TABLE tablename
+   DROP (col1, col2, ...) [CASCADE CONSTRAINTS]
+>> ALTER TABLE tablename RENAME COLUMN colname TO newcolname
+>> ALTER TABLE table_name
+   ADD [CONSTRAINT constr_name] type(col1, col2, ...) [NOT DEFERRABLE|DEFERRABLE INITIALLY DEFERRED|DEFERRABLE INITIALLY IMMEDIATE]
+>> ALTER TABLE table_name
+   DROP PRIMARY KEY | UNIQUE (column) | CONSTRAINT constr_name [CASCADE] [ONLINE]
+>> ALTER TABLE tablename
+   [ENABLE|DISABLE] CONSTRAINT constr_name [CASCADE]
+>> ALTER TABLE tablename RENAME CONSTRAINT constr_name TO new_constr_name
+>> ALTER TABLE tablename
+   SET UNUSED (col1, col2, ...) [ONLINE]
+>> ALTER TABLE tablename
+   DROP UNUSED COLUMNS
+
+>> DROP TABLE tablename [PURGE]
+
+
+>> COMMENT ON TABLE tablename
+   IS 'comment string'
+>> COMMENT ON COLUMN tablename.column
+   IS 'comment string'
+
+--------------------------------------------------------------------------------------------------------
+Data Dictionary Views:
+----------------------
+>> DICTIONARY
+>> USER_OBJECTS,      ALL_OBJECTS,      DBA_OBJECTS
+>> USER_TABLES,       ALL_TABLES,       DBA_TABLES
+>> USER_TAB_COLUMNS,  ALL_TAB_COLUMNS,  DBA_TAB_COLUMNS
+>> USER_VIEWS,        ALL_VIEWS,        DBA_VIEWS
+>> USER_SEQUENCES,    ALL_SEQUENCES,    DBA_SEQUENCES
+>> USER_SYNONYMS,     ALL_SYNONYMS,     DBA_SYNONYMS
+>> USER_INDEXES,      ALL_INDEXES,      DBA_INDEXES
+>> USER_IND_COLUMNS,  ALL_IND_COLUMNS,  DBA_IND_COLUMNS
+>> USER_CONSTRAINTS,  ALL_CONSTRAINTS,  DBA_CONSTRAINTS
+>> USER_CONS_COLUMNS, ALL_CONS_COLUMNS, DBA_CONS_COLUMNS
+
+>> ROLE_SYS_PRIVS,      ROLE_TAB_PRIVS
+>> USER_SYS_PRIVS,      USER_ROLE_PRIVS
+>> USER_TAB_PRIVS_MADE, USER_TAB_PRIVS_RECD
+>> USER_COL_PRIVS_MADE, USER_COL_PRIVS_RECD
+--------------------------------------------------------------------------------------------------------
+Database Objects:
+-----------------
+>> CREATE SEQUENCE seq_name
+                   INCREMENT BY n
+                   START WITH m
+                   MAXVALUE mx | NOMAXVALUE
+                   MINVALUE mn | NOMINVALUE
+                   CYCLE | NOCYCLE
+                   ORDER | NOORDER
+                   CACHE c | NOCACHE
+>> ALTER SEQUENCE seq_name
+                  ...
+>> DROP SEQUENCE seq_name
+>> seq_name.NEXTVAL, seq_name.CURRVAL
+
+>> CREATE [PUBLIC] SYNONYM synonym_name
+   FOR object;
+>> DROP [PUBLIC] SYNONYM synonym_name
+
+>> CREATE [UNIQUE|BITMAP] INDEX index_name
+   ON table(col1, col2, ... ...)
+>> ALTER INDEX index_name INVISIBLE
+>> DROP INDEX index_name [ONLINE]
+
+>> CREATE [OR REPLACE] [FORCE|NOFORCE] VIEW view_name [(alias1, alias2, ...)]
+   AS subquery
+   WITH CHECK OPTION [CONSTRAINT constr_name]
+   WITH READ ONLY [CONSTRAINT constr_name]
+>> DROP VIEW view_name
+
+>> CREATE OR REPLACE DIRECTORY dir_name
+   AS '/.../emp_dir'
+>> GRANT READ ON DIRECTORY dir_name TO user_name
+
+--------------------------------------------------------------------------------------------------------
+User Access Control:
+--------------------
+>> System Privilege - to gain access to the database
+>> Object Privilege - to manipulate the content of the objects in the database
+
+>> CREATE USER username IDENTIFIED BY password
+>> ALTER USER username IDENTIFIED BY password
+>> CREATE ROLE rolename
+
+>> GRANT sys_privilege, sys_privilege,...
+   TO user1,user2,...|role1,role2,...|PUBLIC
+>> GRANT role_name TO user
+
+>> GRANT obj_privilege, obj_privilege, ...
+   ON object
+   TO user|role|PUBLIC
+   [WITH GRANT OPTION]
+>> REVOKE obj_privilege, obj_priivlege, ...
+   ON object
+   FROM user|role|PUBLIC
+   [CASCADE CONSTRAINTS]
