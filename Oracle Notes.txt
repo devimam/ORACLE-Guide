@@ -1,6 +1,5 @@
-Client Side - SQL*Plus
+SQL*Plus - Client Side
 -----------------------
-Commands:
     >> sqlplus /nolog
     >> sqlplus / [AS SYSDBA]
     >> sqlplus username@connect-identifier [as SYSDBA]
@@ -10,7 +9,6 @@ Commands:
 
     >> CONNECT username@connect-identifier [AS SYSDBA]
     >> CONNECT username/password@connect-identifier [AS SYSDBA]
-
     >> DISCONNECT
 
     >> STARTUP NOMOUNT
@@ -18,7 +16,7 @@ Commands:
     >> STARTUP OPEN [READ ONLY | READ WRITE] [dbname]
     >> STARTUP PFILE=filename
 
-    >> SHUTDOWN [ABORT | IMMEDIATE | NORMAL | TRANSACTIONAL]
+    >> SHUTDOWN [ABORT | IMMEDIATE | TRANSACTIONAL | NORMAL]
 
     >> /
     >> @ filename ... ...
@@ -38,7 +36,7 @@ Steps:
     1. Client issues a connect string (ex: CONNECT user/pass@connect-identifier)
     2. Connect identifier types
         a. Easy connect naming:
-                CONNECT user/passA@host[:port][/service_name]
+                CONNECT user/pass@host[:port][/service_name]
 
         b. Local Naming:
             - Stores connect descriptors (identified by their Net Service Name) in a local configuration file named tnsnames.ora on the client.
@@ -76,6 +74,18 @@ Reference: 2 database-net-services-reference.pdf
     >> tnsping orcl
 
 
+Parameter File Management - PFILE, SPFILE:
+------------------------------------------
+>> CREATE SPFILE = '$ORACLE_HOME/dbs/spfileDBA01.ora'
+   FROM   PFILE  = '$ORACLE_HOME/dbs/initDBA01.ora'
+>> CREATE PFILE  = '$ORACLE_HOME/dbs/initDBA01.ora'
+   FROM   SPFILE = '$ORACLE_HOME/dbs/spfileDBA01.ora'
+>> SHOW PARAMETERS param_name
+>> ALTER SYSTEM SET param_name='value' [SCOPE=MEMORY|SPFILE|BOTH] [SID='sid'|'*']
+>> ALTER SYSTEM RESET param_name [SCOPE=MEMORY|SPFILE|BOTH] [SID='sid'|'*']
+>> ALTER DATABASE dbname [MOUNT|OPEN] [READ ONLY|READ WRITE]
+
+
 Control File Management:
 ------------------------
 - Maintains integrity of database and determines whether the database is in a valid state or not.
@@ -86,7 +96,6 @@ Multiplexing Way1 - SPFILE:
        control_files = '$HOME/ORADATA/u01/ctrl01.ctl',
                        '$HOME/ORADATA/u02/ctrl02.ctl'
        SCOPE=SPFILE;
-
     2. shutdown immediate
     3. Copy the ctrl01.ctl file and paste to create the other control file. Rename it to 'ctrl02.ctl'
     4. startup
@@ -107,7 +116,8 @@ Commands:
     >> SELECT * FROM V$PARAMETER
 
 Dynamic Performance Views:
-    - V$DATABASE
+    - V$DATABASE ; displays information about the database from the control file.
+    - database_properties
     - V$ARCHIVE
     - V$ARCHIVED_LOG
 
@@ -115,7 +125,7 @@ Tablespace and Data File Management:
 ------------------------------------
 - Oracle stores data logically in tablespaces and physically in data files.
 - Tablespace: belong to only 1 database and consists of one or more data files.
-- Data files: belong to only 1 database and 1 tablespace. Schema object data repository.
+- Data files: belong to only 1 database and 1 tablespace. Functions as Schema object data repository.
 - SYSTEM tablespace:
     - contains data dictionary, stored program units, system undo segment.
 - Non-system tablespace:
@@ -137,7 +147,7 @@ Tablespace and Data File Management:
        [MINIMUM EXTENT integer[K|M]]
        [BLOCKSIZE integer[K]]
        [LOGGING | NOLOGGING]
-       [DEFAULT STORAGE (INITIAL 2M NEXT 2M MAXEXTENTS 999)]
+       [DEFAULT STORAGE (INITIAL 2M NEXT 2M MAXEXTENTS 999 MAXSIZE sz[K|M] PCTINCREASE pct)]
        [ONLINE | OFFLINE]
        [PERMANENT | TEMPORARY]
        [EXTENT MANAGEMENT [DICTIONARY | LOCAL [AUTOALLOCATE | UNIFORM [SIZE integer[K|M]]]]]
@@ -147,6 +157,7 @@ Tablespace and Data File Management:
     >> ALTER TABLESPACE tablespace_name {ONLINE | OFFLINE}
     >> ALTER TABLESPACE tablespace_name
        ADD DATAFILE filepath SIZE 5M
+
     >> ALTER DATABASE
        DATAFILE filepath AUTOEXTEND ON NEXT 2M
     >> ALTER DATABASE
@@ -157,19 +168,18 @@ Tablespace and Data File Management:
     - Only one UNDO tablespace can be in assigned to a database at a time.
     - More than one UNDO tablespace may exist within an intance, but only on can be active
     >> CREATE UNDO TABLESPACE tablespace_name
-       [DATAFILE filename [SIZE integer[K|M]] [REUSE] []]
+       [DATAFILE filename [SIZE integer[K|M]] [REUSE] [AUTOEXTEND {OFF|ON [NEXT integer[K|M]] [MAXSIZE UNLIMITED | integer[K|M]]]
        [EXTENT MANAGEMENT [LOCAL [AUTOALLOCATE | UNIFORM [SIZE integer[K|M]]]]]
     >> ALTER SYSTEM SET UNDO_TABLESPACE=UNDOTBS2;
 
     >> CREATE TEMPORARY TABLESPACE tablespace_name
-       [TEMPFILE filename [SIZE integer[K|M]] [REUSE] []]
+       [TEMPFILE filename [SIZE integer[K|M]] [REUSE] [AUTOEXTEND {OFF|ON [NEXT integer[K|M]] [MAXSIZE UNLIMITED | integer[K|M]]]
        [MINIMUM EXTENT integer[K|M]]
        [LOGGING | NOLOGGING]
        [DEFAULT storage_clause]
        [ONLINE | OFFLINE]
        [EXTENT MANAGEMENT [DICTIONARY | LOCAL [AUTOALLOCATE | UNIFORM [SIZE integer[K|M]]]]]
        []
-
     >> ALTER DATABASE
        DEFAULT TEMPORARY TABLESPACE default_temp2
 
@@ -198,7 +208,7 @@ REDO LOG Management:
 
 
 SQL Commands:
---------------
+-------------
 >> SELECT {* | [DISTINCT] column|expression [alias], ...}
    FROM table1
         [NATURAL JOIN table2]
